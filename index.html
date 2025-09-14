@@ -21,7 +21,9 @@
         background: #000;
         color: #fff;
         min-height: 100vh;
-        min-height: calc(var(--vh, 1vh) * 100); /* Fallback for older browsers */
+        min-height: calc(
+          var(--vh, 1vh) * 100
+        ); /* Fallback for older browsers */
         min-height: 100dvh; /* Dynamic viewport height for mobile */
         display: flex;
         justify-content: center;
@@ -151,7 +153,7 @@
   <body>
     <div class="container">
       <div class="exercise-info">
-        <div class="exercise-name" id="exerciseName">READY</div>
+        <div class="exercise-name" id="exerciseName">READY 1.1</div>
         <div class="exercise-details" id="exerciseDetails">&nbsp;</div>
       </div>
 
@@ -197,11 +199,16 @@
       let timerInterval = null;
       let wakeLock = null;
       let keepAliveInterval = null;
+      let videoElement = null;
+      let noSleepInterval = null;
 
       const audioContext = new (window.AudioContext ||
         window.webkitAudioContext)();
 
       async function requestWakeLock() {
+        console.log('Requesting wake lock...');
+
+        // Strategy 1: Modern Wake Lock API
         try {
           if ('wakeLock' in navigator) {
             wakeLock = await navigator.wakeLock.request('screen');
@@ -210,32 +217,105 @@
         } catch (err) {
           console.log('Wake lock failed:', err);
         }
-        
-        // Fallback: Keep the page active with periodic activity
+
+        // Strategy 2: Hidden video element (most reliable for iPhone)
+        if (!videoElement) {
+          videoElement = document.createElement('video');
+          videoElement.setAttribute('muted', '');
+          videoElement.setAttribute('playsinline', '');
+          videoElement.setAttribute('webkit-playsinline', '');
+          videoElement.style.position = 'absolute';
+          videoElement.style.top = '-1px';
+          videoElement.style.left = '-1px';
+          videoElement.style.width = '1px';
+          videoElement.style.height = '1px';
+          videoElement.style.opacity = '0';
+          videoElement.style.pointerEvents = 'none';
+
+          // Create a minimal video data URL (1x1 pixel, 1 second duration)
+          const canvas = document.createElement('canvas');
+          canvas.width = 1;
+          canvas.height = 1;
+          const ctx = canvas.getContext('2d');
+          ctx.fillStyle = 'black';
+          ctx.fillRect(0, 0, 1, 1);
+
+          // Convert to video blob
+          const stream = canvas.captureStream(1);
+          videoElement.srcObject = stream;
+          videoElement.loop = true;
+          videoElement.muted = true;
+          videoElement.play().catch(e => console.log('Video play failed:', e));
+
+          document.body.appendChild(videoElement);
+          console.log('Video element created for wake lock');
+        }
+
+        // Strategy 3: Audio context keep-alive
         if (!keepAliveInterval) {
           keepAliveInterval = setInterval(() => {
-            // Create a small, silent audio buffer to keep the page active
             if (audioContext.state === 'running') {
+              // Create a very short, silent audio to keep context alive
               const buffer = audioContext.createBuffer(1, 1, 22050);
               const source = audioContext.createBufferSource();
               source.buffer = buffer;
               source.connect(audioContext.destination);
               source.start();
             }
-          }, 10000); // Every 10 seconds
+          }, 5000); // Every 5 seconds
+        }
+
+        // Strategy 4: Aggressive no-sleep interval
+        if (!noSleepInterval) {
+          noSleepInterval = setInterval(() => {
+            // Multiple strategies to prevent sleep
+            if (videoElement && videoElement.paused) {
+              videoElement
+                .play()
+                .catch(e => console.log('Video resume failed:', e));
+            }
+
+            // Trigger a small user interaction simulation
+            const event = new Event('touchstart', { bubbles: true });
+            document.body.dispatchEvent(event);
+
+            // Keep audio context active
+            if (audioContext.state === 'suspended') {
+              audioContext
+                .resume()
+                .catch(e => console.log('Audio resume failed:', e));
+            }
+          }, 3000); // Every 3 seconds
         }
       }
 
       function releaseWakeLock() {
+        console.log('Releasing wake lock...');
+
         if (wakeLock) {
           wakeLock.release();
           wakeLock = null;
           console.log('Wake lock released');
         }
-        
+
         if (keepAliveInterval) {
           clearInterval(keepAliveInterval);
           keepAliveInterval = null;
+        }
+
+        if (noSleepInterval) {
+          clearInterval(noSleepInterval);
+          noSleepInterval = null;
+        }
+
+        if (videoElement) {
+          videoElement.pause();
+          videoElement.srcObject = null;
+          if (videoElement.parentNode) {
+            videoElement.parentNode.removeChild(videoElement);
+          }
+          videoElement = null;
+          console.log('Video element removed');
         }
       }
 
