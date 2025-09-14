@@ -153,7 +153,7 @@
   <body>
     <div class="container">
       <div class="exercise-info">
-        <div class="exercise-name" id="exerciseName">READY FOR CRIMP</div>
+        <div class="exercise-name" id="exerciseName">READY</div>
         <div class="exercise-details" id="exerciseDetails">&nbsp;</div>
       </div>
 
@@ -204,27 +204,30 @@
 
       async function requestWakeLock() {
         try {
-          if ('wakeLock' in navigator) {
-            wakeLock = await navigator.wakeLock.request('screen');
-            console.log('Wake lock acquired');
+          wakeLock = await navigator.wakeLock.request('screen');
+          console.log('Wake lock acquired');
 
-            // Handle wake lock release
-            wakeLock.addEventListener('release', () => {
-              console.log('Wake lock released');
-            });
-          } else {
-            console.log('Wake Lock API not supported');
-          }
+          // Handle wake lock release - using both methods like MDN demo
+          wakeLock.onrelease = function(ev) {
+            console.log('Wake lock released:', ev);
+          };
+          
+          wakeLock.addEventListener('release', () => {
+            console.log('Wake lock released via event listener');
+          });
+
         } catch (err) {
-          console.log('Wake lock failed:', err);
+          console.log('Wake lock failed:', err.name, err.message);
         }
       }
 
       function releaseWakeLock() {
         if (wakeLock) {
-          wakeLock.release();
-          wakeLock = null;
-          console.log('Wake lock released');
+          wakeLock.release()
+            .then(() => {
+              wakeLock = null;
+              console.log('Wake lock released');
+            });
         }
       }
 
@@ -411,21 +414,14 @@
         setTimeout(setMobileViewportHeight, 100);
       });
 
-      // Handle visibility changes - re-activate wake lock when tab becomes active
-      let wasWakeLockActive = false;
-
-      window.addEventListener('visibilitychange', async () => {
-        if (document.hidden) {
-          // Tab became hidden - remember if wake lock was active
-          wasWakeLockActive = wakeLock !== null;
-          releaseWakeLock();
-        } else {
-          // Tab became visible - re-activate wake lock if it was active
-          if (wasWakeLockActive && !wakeLock) {
-            await requestWakeLock();
-          }
+      // Handle visibility changes - exactly like MDN demo
+      const handleVisibilityChange = () => {
+        if (wakeLock !== null && document.visibilityState === 'visible') {
+          requestWakeLock();
         }
-      });
+      };
+
+      document.addEventListener('visibilitychange', handleVisibilityChange);
 
       // Release wake lock when page is unloaded or refreshed
       window.addEventListener('beforeunload', releaseWakeLock);
