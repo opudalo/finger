@@ -166,7 +166,7 @@
   </head>
   <body>
     <!-- Version label -->
-    <div class="version-label" id="versionLabel">v1.0.2</div>
+    <div class="version-label" id="versionLabel">v1.0.3</div>
 
     <div class="container">
       <div class="exercise-info">
@@ -370,6 +370,8 @@
 
           if (countdown <= 0) {
             clearInterval(countdownInterval);
+            // Play sound to indicate countdown finished
+            playBeep(1500, 0.5);
             // Start the actual timer
             updateDisplay();
             timerInterval = setInterval(tick, 1000);
