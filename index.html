@@ -148,9 +148,27 @@
         border: none;
         padding: 20px;
       }
+
+      /* Version label */
+      .version-label {
+        position: fixed;
+        top: 10px;
+        right: 10px;
+        background: rgba(255, 255, 0, 0.8);
+        color: #000;
+        padding: 4px 8px;
+        font-size: 12px;
+        font-family: monospace;
+        border-radius: 4px;
+        z-index: 1000;
+        pointer-events: none;
+      }
     </style>
   </head>
   <body>
+    <!-- Version label -->
+    <div class="version-label" id="versionLabel">v1.0.2</div>
+
     <div class="container">
       <div class="exercise-info">
         <div class="exercise-name" id="exerciseName">READY</div>
