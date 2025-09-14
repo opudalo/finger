@@ -208,14 +208,13 @@
           console.log('Wake lock acquired');
 
           // Handle wake lock release - using both methods like MDN demo
-          wakeLock.onrelease = function(ev) {
+          wakeLock.onrelease = function (ev) {
             console.log('Wake lock released:', ev);
           };
-          
+
           wakeLock.addEventListener('release', () => {
             console.log('Wake lock released via event listener');
           });
-
         } catch (err) {
           console.log('Wake lock failed:', err.name, err.message);
         }
@@ -223,11 +222,10 @@
 
       function releaseWakeLock() {
         if (wakeLock) {
-          wakeLock.release()
-            .then(() => {
-              wakeLock = null;
-              console.log('Wake lock released');
-            });
+          wakeLock.release().then(() => {
+            wakeLock = null;
+            console.log('Wake lock released');
+          });
         }
       }
 
@@ -326,6 +324,9 @@
           audioContext.resume();
         }
 
+        // Request wake lock immediately - like MDN demo
+        await requestWakeLock();
+
         // Request fullscreen
         try {
           if (document.documentElement.requestFullscreen) {
@@ -355,8 +356,6 @@
             // Start the actual timer
             updateDisplay();
             timerInterval = setInterval(tick, 1000);
-            // Request wake lock to prevent phone from sleeping
-            requestWakeLock();
           }
         }, 1000);
       }
