@@ -104,6 +104,34 @@
         width: 100%;
         margin-top: 30px;
       }
+
+      /* Fullscreen styles */
+      :fullscreen {
+        background: #000;
+      }
+
+      :-webkit-full-screen {
+        background: #000;
+      }
+
+      :-moz-full-screen {
+        background: #000;
+      }
+
+      :-ms-fullscreen {
+        background: #000;
+      }
+
+      /* Ensure the container takes full space in fullscreen */
+      :fullscreen .container,
+      :-webkit-full-screen .container,
+      :-moz-full-screen .container,
+      :-ms-fullscreen .container {
+        height: 100vh;
+        width: 100vw;
+        border: none;
+        padding: 20px;
+      }
     </style>
   </head>
   <body>
@@ -154,6 +182,7 @@
       let isPaused = false;
       let timerInterval = null;
       let wakeLock = null;
+      let keepAliveInterval = null;
 
       const audioContext = new (window.AudioContext ||
         window.webkitAudioContext)();
@@ -167,6 +196,20 @@
         } catch (err) {
           console.log('Wake lock failed:', err);
         }
+        
+        // Fallback: Keep the page active with periodic activity
+        if (!keepAliveInterval) {
+          keepAliveInterval = setInterval(() => {
+            // Create a small, silent audio buffer to keep the page active
+            if (audioContext.state === 'running') {
+              const buffer = audioContext.createBuffer(1, 1, 22050);
+              const source = audioContext.createBufferSource();
+              source.buffer = buffer;
+              source.connect(audioContext.destination);
+              source.start();
+            }
+          }, 10000); // Every 10 seconds
+        }
       }
 
       function releaseWakeLock() {
@@ -174,6 +217,11 @@
           wakeLock.release();
           wakeLock = null;
           console.log('Wake lock released');
+        }
+        
+        if (keepAliveInterval) {
+          clearInterval(keepAliveInterval);
+          keepAliveInterval = null;
         }
       }
 
@@ -261,7 +309,7 @@
         updateDisplay();
       }
 
-      function startTimer() {
+      async function startTimer() {
         if (timerInterval) return;
 
         isPaused = false;
@@ -270,6 +318,19 @@
 
         if (audioContext.state === 'suspended') {
           audioContext.resume();
+        }
+
+        // Request fullscreen
+        try {
+          if (document.documentElement.requestFullscreen) {
+            await document.documentElement.requestFullscreen();
+          } else if (document.documentElement.webkitRequestFullscreen) {
+            await document.documentElement.webkitRequestFullscreen();
+          } else if (document.documentElement.msRequestFullscreen) {
+            await document.documentElement.msRequestFullscreen();
+          }
+        } catch (err) {
+          console.log('Fullscreen request failed:', err);
         }
 
         // Start 5-second countdown
@@ -307,6 +368,19 @@
 
         // Release wake lock when training is complete
         releaseWakeLock();
+
+        // Exit fullscreen
+        try {
+          if (document.exitFullscreen) {
+            document.exitFullscreen();
+          } else if (document.webkitExitFullscreen) {
+            document.webkitExitFullscreen();
+          } else if (document.msExitFullscreen) {
+            document.msExitFullscreen();
+          }
+        } catch (err) {
+          console.log('Exit fullscreen failed:', err);
+        }
 
         document.getElementById('exerciseName').textContent = 'COMPLETE!';
         document.getElementById('exerciseDetails').textContent =
