@@ -198,126 +198,33 @@
       let isPaused = false;
       let timerInterval = null;
       let wakeLock = null;
-      let keepAliveInterval = null;
-      let videoElement = null;
-      let noSleepInterval = null;
 
       const audioContext = new (window.AudioContext ||
         window.webkitAudioContext)();
 
       async function requestWakeLock() {
-        console.log('Requesting wake lock...');
-
-        // Strategy 1: Modern Wake Lock API
         try {
           if ('wakeLock' in navigator) {
             wakeLock = await navigator.wakeLock.request('screen');
             console.log('Wake lock acquired');
+            
+            // Handle wake lock release
+            wakeLock.addEventListener('release', () => {
+              console.log('Wake lock released');
+            });
+          } else {
+            console.log('Wake Lock API not supported');
           }
         } catch (err) {
           console.log('Wake lock failed:', err);
         }
-
-        // Strategy 2: Hidden video element (most reliable for iPhone)
-        if (!videoElement) {
-          videoElement = document.createElement('video');
-          videoElement.setAttribute('muted', '');
-          videoElement.setAttribute('playsinline', '');
-          videoElement.setAttribute('webkit-playsinline', '');
-          videoElement.style.position = 'absolute';
-          videoElement.style.top = '-1px';
-          videoElement.style.left = '-1px';
-          videoElement.style.width = '1px';
-          videoElement.style.height = '1px';
-          videoElement.style.opacity = '0';
-          videoElement.style.pointerEvents = 'none';
-
-          // Create a minimal video data URL (1x1 pixel, 1 second duration)
-          const canvas = document.createElement('canvas');
-          canvas.width = 1;
-          canvas.height = 1;
-          const ctx = canvas.getContext('2d');
-          ctx.fillStyle = 'black';
-          ctx.fillRect(0, 0, 1, 1);
-
-          // Convert to video blob
-          const stream = canvas.captureStream(1);
-          videoElement.srcObject = stream;
-          videoElement.loop = true;
-          videoElement.muted = true;
-          videoElement.volume = 0;
-          videoElement.setAttribute('autoplay', '');
-          videoElement.play().catch(e => console.log('Video play failed:', e));
-
-          document.body.appendChild(videoElement);
-          console.log('Video element created for wake lock');
-        }
-
-        // Strategy 3: Audio context keep-alive
-        if (!keepAliveInterval) {
-          keepAliveInterval = setInterval(() => {
-            if (audioContext.state === 'running') {
-              // Create a very short, silent audio to keep context alive
-              const buffer = audioContext.createBuffer(1, 1, 22050);
-              const source = audioContext.createBufferSource();
-              source.buffer = buffer;
-              source.connect(audioContext.destination);
-              source.start();
-            }
-          }, 5000); // Every 5 seconds
-        }
-
-        // Strategy 4: Aggressive no-sleep interval
-        if (!noSleepInterval) {
-          noSleepInterval = setInterval(() => {
-            // Multiple strategies to prevent sleep
-            if (videoElement && videoElement.paused) {
-              videoElement
-                .play()
-                .catch(e => console.log('Video resume failed:', e));
-            }
-
-            // Trigger a small user interaction simulation
-            const event = new Event('touchstart', { bubbles: true });
-            document.body.dispatchEvent(event);
-
-            // Keep audio context active
-            if (audioContext.state === 'suspended') {
-              audioContext
-                .resume()
-                .catch(e => console.log('Audio resume failed:', e));
-            }
-          }, 3000); // Every 3 seconds
-        }
       }
 
       function releaseWakeLock() {
-        console.log('Releasing wake lock...');
-
         if (wakeLock) {
           wakeLock.release();
           wakeLock = null;
           console.log('Wake lock released');
-        }
-
-        if (keepAliveInterval) {
-          clearInterval(keepAliveInterval);
-          keepAliveInterval = null;
-        }
-
-        if (noSleepInterval) {
-          clearInterval(noSleepInterval);
-          noSleepInterval = null;
-        }
-
-        if (videoElement) {
-          videoElement.pause();
-          videoElement.srcObject = null;
-          if (videoElement.parentNode) {
-            videoElement.parentNode.removeChild(videoElement);
-          }
-          videoElement = null;
-          console.log('Video element removed');
         }
       }
 
@@ -504,13 +411,24 @@
         setTimeout(setMobileViewportHeight, 100);
       });
 
-      // Release wake lock when page is unloaded or refreshed
-      window.addEventListener('beforeunload', releaseWakeLock);
-      window.addEventListener('visibilitychange', () => {
+      // Handle visibility changes - re-activate wake lock when tab becomes active
+      let wasWakeLockActive = false;
+      
+      window.addEventListener('visibilitychange', async () => {
         if (document.hidden) {
+          // Tab became hidden - remember if wake lock was active
+          wasWakeLockActive = wakeLock !== null;
           releaseWakeLock();
+        } else {
+          // Tab became visible - re-activate wake lock if it was active
+          if (wasWakeLockActive && !wakeLock) {
+            await requestWakeLock();
+          }
         }
       });
+
+      // Release wake lock when page is unloaded or refreshed
+      window.addEventListener('beforeunload', releaseWakeLock);
     </script>
   </body>
 </html>
