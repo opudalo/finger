@@ -245,6 +245,8 @@
           videoElement.srcObject = stream;
           videoElement.loop = true;
           videoElement.muted = true;
+          videoElement.volume = 0;
+          videoElement.setAttribute('autoplay', '');
           videoElement.play().catch(e => console.log('Video play failed:', e));
 
           document.body.appendChild(videoElement);
